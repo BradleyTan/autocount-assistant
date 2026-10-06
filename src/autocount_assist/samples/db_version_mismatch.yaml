@@ -1,0 +1,14 @@
+# Synthetic sample: no real customer data.
+scenario: db_version_mismatch
+question: AutoCount says the database version is newer than the program version
+expected_top_cause: upgrade_this_pc
+binaries: {AutoCount2.exe: 2.2.32.45, AutoCount.Accounting.dll: 2.2.32.45}
+logs:
+  Logs/AutoCount.log: |
+    2026-10-06 11:20:45 ERROR Database version 2.2.99 is newer than this program supports (incompatible)
+database:
+  schema:
+    DBVersion: [Version]
+  responses:
+    - match: 'FROM \[dbversion\]'
+      rows: [{v: "2.2.99"}]

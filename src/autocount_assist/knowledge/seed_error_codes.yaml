@@ -1,0 +1,47 @@
+# Seed error codes loaded into a new knowledge base. Add AutoCount-specific codes with
+# `autocount-assist learn error-code` as you meet them.
+- code: "SQL 18456"
+  source: SQL Server
+  message: Login failed for user
+  cause: Wrong SQL login or password, login disabled, or SQL authentication not enabled on the instance.
+  fix: Check the login in SQL Server Management Studio > Security > Logins, and that the instance allows SQL Server and Windows Authentication mode.
+- code: "SQL 4060"
+  source: SQL Server
+  message: Cannot open database requested by the login
+  cause: The account book database is offline, renamed, or the login has no user mapped in that database.
+  fix: Confirm the database is ONLINE and the login is mapped to it (User Mapping).
+- code: "SQL 229"
+  source: SQL Server
+  message: The SELECT/EXECUTE permission was denied on the object
+  cause: The login lacks permission on that object (expected for the read-only login on anything but SELECT).
+  fix: For AutoCount users, check AutoCount's own SQL login is intact; do not grant extra rights to ac_readonly.
+- code: "SQL 1205"
+  source: SQL Server
+  message: Transaction was deadlocked
+  cause: Two sessions locked the same rows, often heavy posting while a report or costing recalculation runs.
+  fix: Retry the action; schedule recalculations and large reports outside busy hours.
+- code: "SQL 9002"
+  source: SQL Server
+  message: The transaction log for database is full
+  cause: Log file cannot grow (disk full or max size reached) or log backups are not running in FULL recovery.
+  fix: Free disk space, take a log backup or switch to SIMPLE recovery after a full backup.
+- code: "SQL -2 / Timeout expired"
+  source: SQL Server client
+  message: Timeout expired. The timeout period elapsed prior to completion of the operation
+  cause: Long-running query, blocking, or very slow disk/network.
+  fix: Check blocking sessions (Activity Monitor) and index maintenance; retry outside busy hours.
+- code: "SQL network error 26"
+  source: SQL Server client
+  message: Error Locating Server/Instance Specified
+  cause: Named instance (e.g. A2006) not reachable because SQL Server Browser stopped, firewall blocking UDP 1434, or wrong instance name.
+  fix: Start SQL Server Browser service, allow UDP 1434 and the instance port in the firewall, verify the instance name.
+- code: "HTTP 401"
+  source: e-Invoice (MyInvois)
+  message: Unauthorized
+  cause: Client ID / client secret invalid or expired, or credentials registered for a different environment (sandbox vs production).
+  fix: Re-generate or re-enter the ERP client credentials from the MyInvois portal for the correct environment.
+- code: "HTTP 429"
+  source: e-Invoice (MyInvois)
+  message: Too Many Requests
+  cause: Submission rate limit reached.
+  fix: Wait and resubmit in smaller batches.

@@ -1,0 +1,20 @@
+# Synthetic sample: no real customer data.
+scenario: sst_report_vs_ledger
+question: SST-02 report total differs from the SST payable ledger balance
+expected_top_cause: manual_journal
+binaries: {AutoCount2.exe: 2.2.32.45, AutoCount.Accounting.dll: 2.2.32.45}
+logs:
+  Logs/AutoCount.log: |
+    2026-10-05 10:00:00 INFO Report generated
+database:
+  schema:
+    DBVersion: [Version]
+    GLDTL: [AccNo, SourceType, DocDate]
+    TaxCode: [TaxCode, TaxRate, TaxAccNo]
+  responses:
+    - match: 'FROM \[dbversion\]'
+      rows: [{v: "2.2.97"}]
+    - match: "SourceType = 'JE'"
+      rows: [{AccNo: "SST-PAY", SourceType: "JE", n: 3}]
+    - match: 'WHERE TaxRate = 6'
+      rows: []

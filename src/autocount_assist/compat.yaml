@@ -1,0 +1,5 @@
+# AutoCount Accounting system version -> database version it expects.
+# Add rows as you confirm them (from release notes or real installs).
+# Keys are system versions; a key of major.minor.build (e.g. "2.2.32") applies to every revision.
+compatibility:
+  "2.2.32.45": "2.2.97"

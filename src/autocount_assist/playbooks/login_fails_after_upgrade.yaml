@@ -1,0 +1,80 @@
+id: login_fails_after_upgrade
+title: Cannot log in after upgrading AutoCount
+keywords: [login, log in, logon, sign in, cannot open, upgrade, upgraded, after update, password, account book]
+checks:
+  - id: version_mismatch
+    type: version_mismatch
+    describe: System and database versions are compatible
+  - id: core_dlls
+    type: core_dll_mismatch
+    describe: All AutoCount DLLs match the system version
+  - id: sql_login_failed
+    type: log
+    describe: SQL Server login failures in logs
+    pattern: '(login failed for user|18456)'
+  - id: sql_unreachable
+    type: log
+    describe: SQL Server instance unreachable in logs
+    pattern: '(network-related|server was not found|error: ?26|error: ?40|error locating server|sql server browser)'
+  - id: assembly_load
+    type: log
+    describe: DLL / plugin load failures in logs
+    pattern: '(could not load file or assembly|filenotfoundexception|badimageformat|typeloadexception|plugin.*(fail|error))'
+  - id: licence_error
+    type: log
+    describe: Licence / activation errors in logs
+    pattern: '(licen[cs]e|activation|serial|registration).*(invalid|expired|fail|not found)'
+causes:
+  - id: db_not_upgraded
+    title: The account book database has not been upgraded to the new version
+    checks: [version_mismatch]
+    base: 0.55
+    menu: AutoCount login > database upgrade prompt (as an administrator)
+    steps:
+      - Make a full backup of the account book first.
+      - Ask all users to close AutoCount.
+      - Log in once with an administrator on the upgraded PC and accept the database upgrade prompt.
+      - Check the database version afterwards with `autocount-assist scan`.
+  - id: partial_upgrade
+    title: The upgrade was incomplete (AutoCount DLLs from different versions)
+    checks: [core_dlls]
+    base: 0.5
+    menu: Windows Settings > Apps > AutoCount Accounting > Modify/Repair (or rerun the installer)
+    steps:
+      - Close AutoCount on this PC.
+      - Rerun the 2.2.32.45 installer (or Repair) as administrator.
+      - Check again that no AutoCount DLL has an older version.
+  - id: plugin_incompatible
+    title: A plugin is not compatible with the new version
+    checks: [assembly_load]
+    base: 0.45
+    menu: Tools > Plug-In Manager
+    steps:
+      - Note the DLL named in the error.
+      - Temporarily disable or remove that plugin and try logging in again.
+      - Ask the plugin vendor for a build that supports the new version.
+  - id: sql_login
+    title: SQL Server rejected the login
+    checks: [sql_login_failed]
+    base: 0.5
+    menu: SQL Server Management Studio > Security > Logins (outside AutoCount)
+    steps:
+      - Check that the SQL login AutoCount uses exists, is enabled and not locked out.
+      - Check that the instance still allows SQL Server authentication after the upgrade.
+  - id: sql_unreachable
+    title: The SQL Server instance can't be reached
+    checks: [sql_unreachable]
+    base: 0.5
+    menu: Windows Services (SQL Server (A2006), SQL Server Browser)
+    steps:
+      - Start the SQL Server (A2006) and SQL Server Browser services.
+      - Check that the firewall allows the instance and UDP 1434.
+      - Confirm the server/instance name in AutoCount's account book settings.
+  - id: licence
+    title: Licence or activation problem after the upgrade
+    checks: [licence_error]
+    base: 0.45
+    menu: Help > Licence / Activation
+    steps:
+      - Check the licence covers the new version.
+      - Re-activate the licence online, then log in again.
