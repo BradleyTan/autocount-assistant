@@ -1,0 +1,96 @@
+id: einvoice_submission_fails
+title: e-Invoice submission fails (MyInvois)
+keywords: [e-invoice, einvoice, e invoice, myinvois, lhdn, irbm, submission, submit, validation, uin, tin]
+checks:
+  - id: auth_error
+    type: log
+    describe: e-Invoice authentication errors in logs
+    pattern: '(401|unauthori[sz]ed|invalid_client|invalid client|token.*(expired|invalid))'
+  - id: tin_error
+    type: log
+    describe: TIN / buyer identity validation errors in logs
+    pattern: '(invalid tin|tin.*(not match|invalid|not found|mismatch)|buyer.*tin|taxpayer.*not found)'
+  - id: network_error
+    type: log
+    describe: Connectivity / TLS errors when calling MyInvois
+    pattern: '(timed? ?out|unable to connect|no such host|name resolution|ssl|tls|could not establish trust|proxy)'
+  - id: rate_limit
+    type: log
+    describe: Rate-limit responses from MyInvois
+    pattern: '(429|too many requests|rate limit)'
+  - id: doc_validation
+    type: log
+    describe: Document structure / validation errors returned by MyInvois
+    pattern: '(validation (error|failed)|schema validation|invalid (structure|document)|rejected|CF\d{3})'
+  - id: sandbox_env
+    type: config
+    describe: e-Invoice pointing at the sandbox / pre-production environment
+    key: '(e-?invoice|myinvois|lhdn).*(env|environment|url|endpoint|server)'
+    value: '(sandbox|preprod|pre-prod|uat|test)'
+  - id: debtors_missing_tin
+    type: sql
+    verified: false
+    describe: Active debtors with no TIN recorded
+    requires: {Debtor: [AccNo, TIN, IsActive]}
+    query: >
+      SELECT COUNT(*) AS n FROM Debtor
+      WHERE IsActive = 'T' AND (TIN IS NULL OR LTRIM(RTRIM(TIN)) = '')
+    finding_when: nonzero:n
+    ref: Debtor.TIN
+causes:
+  - id: invalid_credentials
+    title: e-Invoice client ID / secret invalid or expired
+    checks: [auth_error]
+    base: 0.5
+    menu: Tools > Options > e-Invoice (client ID / client secret)
+    steps:
+      - Log in to the MyInvois portal as the taxpayer and check the ERP system registration is active.
+      - Generate a new client secret if the old one expired, for the same environment AutoCount uses.
+      - Enter the client ID and secret again in AutoCount's e-Invoice settings and save.
+      - Use the connection test, then resubmit one document before resubmitting the batch.
+  - id: wrong_environment
+    title: AutoCount is submitting to the sandbox instead of production (or credentials are for the other one)
+    checks: [sandbox_env, auth_error]
+    requires: [sandbox_env]
+    base: 0.4
+    menu: Tools > Options > e-Invoice (environment)
+    steps:
+      - Confirm with the customer whether they are live on MyInvois production.
+      - Switch the e-Invoice environment to Production and enter the production client ID and secret.
+      - Resubmit one document to confirm.
+  - id: buyer_tin_invalid
+    title: Buyer TIN missing or invalid on the debtor
+    checks: [tin_error, debtors_missing_tin]
+    base: 0.45
+    menu: A/R > Debtor Maintenance > (debtor) > e-Invoice / Tax tab
+    steps:
+      - Open the debtor named on the rejected invoice.
+      - Validate the buyer's TIN and ID (BRN/NRIC) on the MyInvois portal's TIN search.
+      - Correct the TIN / ID type on the debtor, save, then resubmit the invoice.
+      - For buyers without a TIN, use the general public TIN as allowed by LHDN guidelines.
+  - id: network_blocked
+    title: Network, proxy or TLS problem reaching MyInvois
+    checks: [network_error]
+    base: 0.45
+    menu: Windows network / firewall settings (outside AutoCount)
+    steps:
+      - From the same PC, open the MyInvois API host in a browser to confirm it is reachable.
+      - Check the firewall / antivirus web filter and any proxy allows the MyInvois hosts on port 443.
+      - Make sure Windows is up to date so TLS 1.2 is enabled, then retry.
+  - id: rate_limited
+    title: Submission rate limit reached
+    checks: [rate_limit]
+    base: 0.5
+    menu: e-Invoice submission screen
+    steps:
+      - Wait a few minutes, then resubmit.
+      - Submit large batches in smaller groups.
+  - id: document_invalid
+    title: Document data fails MyInvois validation (classification, tax type, address, etc.)
+    checks: [doc_validation]
+    base: 0.45
+    menu: The source document (e.g. Sales > Invoice) > e-Invoice details
+    steps:
+      - Open the rejection details for the document to read the field MyInvois rejected.
+      - Correct that field on the document or its master data (item classification, tax type, state code, address).
+      - Resubmit the document.

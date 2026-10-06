@@ -1,0 +1,25 @@
+# Synthetic sample: no real customer data.
+scenario: einvoice_submission_fails
+question: Customer says e-Invoice submission to MyInvois fails for all invoices since this morning
+expected_top_cause: invalid_credentials
+binaries: {AutoCount2.exe: 2.2.32.45, AutoCount.Accounting.dll: 2.2.32.45}
+logs:
+  Logs/EInvoice.log: |
+    2026-10-06 08:58:12 INFO Submitting 12 document(s) to MyInvois
+    2026-10-06 08:58:13 ERROR MyInvois token request failed: 401 Unauthorized (invalid_client) client_secret=ab12cd34
+    2026-10-06 09:15:40 ERROR MyInvois token request failed: 401 Unauthorized (invalid_client)
+configs:
+  AutoCount2.exe.config: |
+    <configuration><appSettings>
+      <add key="EInvoiceEnvironment" value="Production"/>
+      <add key="EInvoiceClientSecret" value="do-not-show"/>
+    </appSettings></configuration>
+database:
+  schema:
+    DBVersion: [Version]
+    Debtor: [AccNo, CompanyName, TIN, IsActive]
+  responses:
+    - match: 'FROM \[dbversion\]'
+      rows: [{v: "2.2.97"}]
+    - match: 'FROM Debtor'
+      rows: [{n: 0}]

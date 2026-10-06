@@ -1,0 +1,60 @@
+id: sst_report_vs_ledger
+title: SST report differs from the general ledger
+keywords: [sst, sst-02, sst02, service tax, sales tax, tax report, tax code, ledger, gl, differ, difference, mismatch]
+checks:
+  - id: manual_je_to_tax_account
+    type: sql
+    verified: false
+    describe: Journal entries posted directly to tax accounts (not from tax documents)
+    requires: {GLDTL: [AccNo, SourceType], TaxCode: [TaxAccNo]}
+    query: >
+      SELECT TOP 20 AccNo, SourceType, COUNT(*) AS n FROM GLDTL
+      WHERE SourceType = 'JE' AND AccNo IN (SELECT DISTINCT TaxAccNo FROM TaxCode WHERE TaxAccNo IS NOT NULL)
+      GROUP BY AccNo, SourceType
+    ref: GLDTL (SourceType=JE on TaxCode.TaxAccNo)
+  - id: old_service_tax_rate
+    type: sql
+    verified: false
+    describe: Service tax codes still at the old 6% rate (8% since 1 March 2024 for most services)
+    requires: {TaxCode: [TaxCode, TaxRate]}
+    query: SELECT TaxCode, TaxRate FROM TaxCode WHERE TaxRate = 6
+    ref: TaxCode.TaxRate
+  - id: tax_report_error
+    type: log
+    describe: Errors while generating tax reports
+    pattern: '(sst|tax).*(report).*(error|exception|fail)'
+causes:
+  - id: manual_journal
+    title: Manual journal entries to the SST account are in the ledger but not in the SST report
+    checks: [manual_je_to_tax_account]
+    base: 0.5
+    menu: G/L > Journal Entry (and G/L > Ledger report filtered on the SST account)
+    steps:
+      - List the journal entries on the SST payable account for the period.
+      - Decide with the customer whether each is a genuine adjustment; the SST report only includes tax from documents.
+      - Reverse wrong journals and re-issue them as proper tax documents (e.g. credit/debit notes) if they affect SST.
+  - id: wrong_rate
+    title: Service tax code still uses the old 6% rate
+    checks: [old_service_tax_rate]
+    base: 0.45
+    menu: General Maintenance > Tax Code Maintenance
+    steps:
+      - Check which services in the period should be taxed at 8%.
+      - Create or update the 8% service tax code and set it as the default on the affected items / accounts.
+      - Correct documents issued with the wrong rate using credit/debit notes as advised by the customer's tax agent.
+  - id: period_or_basis
+    title: Reports use different periods or bases (document date vs posting date, or invoice vs payment basis)
+    checks: []
+    base: 0.35
+    menu: SST report criteria screen and G/L > Ledger criteria
+    steps:
+      - Run both reports for exactly the same date range.
+      - Confirm the SST report basis (for service tax, payment received basis may apply) matches what is being compared.
+  - id: report_error
+    title: The SST report failed or was incomplete
+    checks: [tax_report_error]
+    base: 0.45
+    menu: The SST report screen
+    steps:
+      - Re-run the report and note the error message.
+      - Check the error against the knowledge base and release notes for a fix in a newer version.

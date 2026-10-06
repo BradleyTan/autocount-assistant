@@ -1,0 +1,74 @@
+id: stock_balance_mismatch
+title: Stock balance does not match (stock card vs balance report vs physical)
+keywords: [stock, balance, qty, quantity, inventory, stock card, mismatch, negative stock, costing, uom]
+checks:
+  - id: negative_balance
+    type: sql
+    verified: false
+    describe: Items with a negative balance by location
+    requires: {StockDTL: [ItemCode, Location, Qty]}
+    query: >
+      SELECT TOP 20 ItemCode, Location, SUM(Qty) AS Balance FROM StockDTL
+      GROUP BY ItemCode, Location HAVING SUM(Qty) < 0 ORDER BY SUM(Qty)
+    ref: StockDTL (SUM(Qty) by ItemCode, Location)
+  - id: bad_uom_rate
+    type: sql
+    verified: false
+    describe: Item UOMs with zero or missing conversion rate
+    requires: {ItemUOM: [ItemCode, UOM, Rate]}
+    query: SELECT TOP 20 ItemCode, UOM, Rate FROM ItemUOM WHERE Rate IS NULL OR Rate <= 0
+    ref: ItemUOM.Rate
+  - id: future_dated
+    type: sql
+    verified: false
+    describe: Stock transactions dated in the future
+    requires: {StockDTL: [DocDate]}
+    query: SELECT COUNT(*) AS n, MAX(DocDate) AS latest FROM StockDTL WHERE DocDate > GETDATE()
+    finding_when: nonzero:n
+    ref: StockDTL.DocDate
+  - id: costing_error
+    type: log
+    describe: Stock costing / recalculation errors in logs
+    pattern: '(costing|recalculat|stock (status|balance)).*(error|fail|exception|timeout)'
+causes:
+  - id: negative_stock
+    title: Stock went negative (issued before it was received, or a missing receipt)
+    checks: [negative_balance]
+    base: 0.5
+    menu: Stock > Stock Card (per item / location)
+    steps:
+      - Open the stock card for each item listed and find where the running balance first goes negative.
+      - Check for a missing or wrongly dated goods received / purchase invoice before that point.
+      - Post the missing receipt or correct the document date, then run the stock costing recalculation.
+      - If negative stock should not happen, review the "allow negative stock" setting with the customer.
+  - id: uom_rate
+    title: Wrong UOM conversion rate distorts quantities
+    checks: [bad_uom_rate]
+    base: 0.5
+    menu: Stock > Item Maintenance > (item) > UOM
+    steps:
+      - Open each item listed and correct the UOM rate (the base UOM must be 1).
+      - Run the stock costing recalculation so balances are rebuilt with the right rate.
+  - id: future_dates
+    title: Future-dated documents make "as at today" balances differ from the stock card
+    checks: [future_dated]
+    base: 0.45
+    menu: Stock > Stock Card (filter by date range)
+    steps:
+      - List the documents with a date after today and confirm whether the dates are typos.
+      - Correct the document dates, then compare the reports again using the same "as at" date.
+  - id: costing_not_recalculated
+    title: Stock costing recalculation failed or has not been run after back-dated changes
+    checks: [costing_error]
+    base: 0.45
+    menu: Tools > Recalculate Stock Costing
+    steps:
+      - Ask all users to log out, back up the account book, then run the stock costing recalculation.
+      - If it fails again, note the item in the error and check that item's transactions for bad data.
+  - id: report_filters
+    title: The two reports use different date, location or item filters
+    checks: []
+    base: 0.3
+    menu: The report's filter / criteria screen
+    steps:
+      - Re-run both reports with the same date, location, item group and "include inactive" options.

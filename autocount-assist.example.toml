@@ -1,0 +1,29 @@
+# Copy to %LocalAppData%\autocount-assist\autocount-assist.toml and edit.
+# Non-secret settings only. Credentials go in environment variables:
+#   AC_SQL_USER / AC_SQL_PASSWORD  (leave both unset to use Windows authentication)
+
+install_path = 'C:\Program Files\AutoCount\Accounting 2.2'
+sql_server = 'localhost\A2006'
+odbc_driver = 'ODBC Driver 18 for SQL Server'
+
+# Folders searched for logs. {install_path} and %ENVVARS% are expanded.
+log_dirs = [
+  '{install_path}',
+  '%ProgramData%\AutoCount',
+  '%LocalAppData%\AutoCount',
+  '%AppData%\AutoCount',
+]
+config_dirs = ['{install_path}']
+plugin_dirs = ['{install_path}']
+
+# Leave unset to pick the account book each time (or pass --db / set AC_DB).
+# database = 'AED_ACME'
+
+# If the system version can't be read from the EXE, set it here.
+# app_version = '2.2.32.45'
+
+# If the database version is auto-discovered from the wrong table, set the query here (SELECT only).
+# db_version_query = 'SELECT TOP 1 Version FROM DBVersion'
+
+# Where the knowledge base and proposed scripts live. Must be outside any git checkout.
+# data_dir = 'C:\Users\you\AppData\Local\autocount-assist'

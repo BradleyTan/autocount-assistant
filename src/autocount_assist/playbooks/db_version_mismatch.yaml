@@ -1,0 +1,48 @@
+id: db_version_mismatch
+title: Database version does not match the system version
+keywords: [database version, db version, version mismatch, mismatch, not compatible, incompatible, newer version, older version, version]
+checks:
+  - id: db_older
+    type: version_mismatch
+    direction: db_older
+    describe: Database is older than this system version expects
+  - id: db_newer
+    type: version_mismatch
+    direction: db_newer
+    describe: Database is newer than this system version expects
+  - id: core_dlls
+    type: core_dll_mismatch
+    describe: All AutoCount DLLs match the system version
+  - id: version_log
+    type: log
+    describe: Version mismatch messages in logs
+    pattern: '(database|db) ?version.*(not match|mismatch|higher|lower|newer|older|incompatible|not support)'
+causes:
+  - id: upgrade_database
+    title: The database is older than the system; it needs the database upgrade
+    checks: [db_older, version_log]
+    requires: [db_older]
+    base: 0.55
+    menu: AutoCount login > database upgrade prompt (as an administrator)
+    steps:
+      - Back up the account book.
+      - Make sure everyone is out of AutoCount.
+      - Log in as an administrator with system 2.2.32.45 and run the database upgrade when prompted.
+      - Confirm the database version is now 2.2.97.
+  - id: upgrade_this_pc
+    title: The database was upgraded from another PC; this PC runs an older system version
+    checks: [db_newer, version_log]
+    requires: [db_newer]
+    base: 0.55
+    menu: Run the AutoCount 2.2.32.45 installer on this PC
+    steps:
+      - Check the system version on every PC that uses this account book.
+      - Upgrade this PC to the same version as the one that upgraded the database.
+      - Do not try to downgrade the database; restore a backup only if the upgrade must be undone.
+  - id: mixed_dlls
+    title: Mixed AutoCount DLL versions make the system report the wrong version
+    checks: [core_dlls]
+    base: 0.45
+    menu: Windows Settings > Apps > AutoCount Accounting > Modify/Repair
+    steps:
+      - Rerun or repair the installer as administrator so every AutoCount DLL is the same version.

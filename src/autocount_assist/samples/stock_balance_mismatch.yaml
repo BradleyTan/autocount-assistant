@@ -1,0 +1,24 @@
+# Synthetic sample: no real customer data.
+scenario: stock_balance_mismatch
+question: Stock balance report quantity does not match the stock card for some items
+expected_top_cause: negative_stock
+binaries: {AutoCount2.exe: 2.2.32.45, AutoCount.Accounting.dll: 2.2.32.45}
+logs:
+  Logs/AutoCount.log: |
+    2026-10-05 17:00:01 INFO Day end
+database:
+  schema:
+    DBVersion: [Version]
+    StockDTL: [ItemCode, Location, Qty, DocDate]
+    ItemUOM: [ItemCode, UOM, Rate]
+  responses:
+    - match: 'FROM \[dbversion\]'
+      rows: [{v: "2.2.97"}]
+    - match: 'HAVING SUM\(Qty\) < 0'
+      rows:
+        - {ItemCode: "ITM-0001", Location: "HQ", Balance: -12}
+        - {ItemCode: "ITM-0042", Location: "HQ", Balance: -3}
+    - match: 'FROM ItemUOM'
+      rows: []
+    - match: 'DocDate > GETDATE'
+      rows: [{n: 0, latest: null}]
