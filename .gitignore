@@ -1,0 +1,27 @@
+# --- Sensitive data: never commit (stays on the support PC only) ---
+*.sqlite
+*.sqlite3
+*.db
+kb/
+data/
+proposed/
+scans/
+cases/
+*.log
+.env
+.env.*
+autocount-assist.toml
+*.bak
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+
+# Synthetic sample data shipped with the tool (no customer data) is allowed
+!src/autocount_assist/samples/**
