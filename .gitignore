@@ -5,6 +5,7 @@
 kb/
 data/
 proposed/
+setup/
 scans/
 cases/
 *.log

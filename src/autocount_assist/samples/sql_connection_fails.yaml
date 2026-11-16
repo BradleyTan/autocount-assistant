@@ -1,0 +1,15 @@
+# Synthetic sample: no real customer data.
+scenario: sql_connection_fails
+question: Workstation cannot connect to SQL Server, error 26 error locating server/instance specified
+expected_top_cause: browser_stopped
+binaries: {AutoCount2.exe: 2.2.32.45, AutoCount.Accounting.dll: 2.2.32.45}
+logs:
+  Logs/AutoCount.log: |
+    {d0} 08:31:10 ERROR A network-related or instance-specific error occurred. (provider: SQL Network Interfaces, error: 26 - Error Locating Server/Instance Specified)
+services: {"MSSQL$A2006": running, SQLBrowser: stopped}
+database:
+  schema:
+    DBVersion: [Version]
+  responses:
+    - match: 'FROM \[dbversion\]'
+      rows: [{v: "2.2.97"}]

@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autocount-assist"
+version = "0.2.0"
+description = "Read-only support assistant for AutoCount Accounting 2.2 desktop"
+requires-python = ">=3.11"
+dependencies = [
+    "PyYAML>=6",
+    "pyodbc>=5; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "types-PyYAML"]
+
+[project.scripts]
+autocount-assist = "autocount_assist.cli:entry"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+autocount_assist = ["playbooks/*.yaml", "knowledge/*.yaml", "samples/*.yaml", "compat.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["autocount_assist", "helpers", "test_recommendation_format"]
+
+[tool.mypy]
+files = ["src"]
+python_version = "3.11"
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+module = ["pyodbc", "winreg"]
+ignore_missing_imports = true

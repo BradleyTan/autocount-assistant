@@ -1,0 +1,94 @@
+id: sql_connection_fails
+title: AutoCount cannot connect to SQL Server
+keywords: [connect, connection, sql server, server not found, network-related, instance, cannot connect, error 26, error 40, "18456", login failed, attach, workstation]
+ask_customer:
+  - Does it fail on the server PC, on a workstation, or on all PCs?
+  - What is the exact error message, including any error number?
+  - Did anything change, such as Windows updates, antivirus, a new router or a renamed PC?
+checks:
+  - id: engine_service
+    type: windows_service
+    service: engine
+    describe: The SQL Server service for this instance is running
+  - id: browser_service
+    type: windows_service
+    service: browser
+    describe: The SQL Server Browser service is running
+  - id: cannot_reach
+    type: sql_connect
+    describe: This PC can reach the SQL Server instance now
+    error_pattern: '(network-related|not found|not accessible|locating server|timeout|08001|could not open a connection)'
+  - id: login_rejected
+    type: sql_connect
+    describe: SQL Server accepts the tool's login now
+    error_pattern: '(\b18456\b|login failed|\b28000\b|\b18452\b)'
+  - id: unreachable_log
+    type: log
+    describe: SQL Server unreachable messages in logs
+    pattern: '(network-related|server was not found|error: ?26|error: ?40|error locating server)'
+  - id: login_failed_log
+    type: log
+    describe: SQL Server login failures in logs
+    pattern: '(login failed for user|\b18456\b)'
+  - id: unreachable_reported
+    type: question
+    describe: Customer reports a server not found error
+    pattern: '(network-related|server (was )?not found|error:? ?26\b|error:? ?40\b|cannot (find|locate) (the )?server)'
+  - id: login_failed_reported
+    type: question
+    describe: Customer reports a login failed error
+    pattern: '(login failed|\b18456\b)'
+causes:
+  - id: service_stopped
+    title: The SQL Server service is stopped
+    why: The account book lives inside SQL Server. When its Windows service is stopped, no program can open any account book.
+    checks: [engine_service, cannot_reach, unreachable_log, unreachable_reported]
+    requires: [engine_service]
+    base: 0.55
+    menu: Windows Services > SQL Server (instance name)
+    changes_data: false
+    steps:
+      - On the server PC, open Services and start "SQL Server (instance name)".
+      - Set its startup type to Automatic so it starts with Windows.
+      - If it will not start, read the newest ERRORLOG in the instance's Log folder for the reason.
+    verify:
+      - '`autocount-assist dbs` lists the account books.'
+  - id: browser_stopped
+    title: SQL Server Browser is stopped, so the named instance cannot be found
+    why: A named instance listens on a port that can change. Workstations ask the Browser service which port to use; without it they report "error 26, error locating server/instance".
+    checks: [browser_service, unreachable_log, unreachable_reported]
+    requires: [browser_service]
+    base: 0.5
+    menu: Windows Services > SQL Server Browser
+    changes_data: false
+    steps:
+      - On the server PC, start the SQL Server Browser service and set it to Automatic.
+      - Allow UDP port 1434 in the server's firewall.
+    verify:
+      - A workstation can log in to AutoCount.
+  - id: network_or_firewall
+    title: Firewall, network or a wrong server name blocks the connection
+    why: Workstations reach SQL Server over the network by name. A firewall rule, a renamed PC or a changed IP address breaks that path while the server PC itself still works.
+    checks: [cannot_reach, unreachable_log, unreachable_reported]
+    base: 0.4
+    menu: Windows Defender Firewall (server PC) and AutoCount's account book server name
+    changes_data: false
+    steps:
+      - From the workstation, ping the server PC by the name used in AutoCount's account book settings.
+      - On the server, allow sqlservr.exe and UDP 1434 through the firewall, and enable TCP/IP in SQL Server Configuration Manager.
+      - If the PC was renamed, attach the account book again with the new server name.
+    verify:
+      - The workstation can log in to AutoCount.
+  - id: login_rejected
+    title: SQL Server rejects the login (wrong password, disabled login or SQL authentication off)
+    why: Reaching the server is not enough; SQL Server must also accept the login. Error 18456 means the server was found but said no.
+    checks: [login_rejected, login_failed_log, login_failed_reported]
+    base: 0.45
+    menu: SQL Server Management Studio > Security > Logins, and server Properties > Security
+    safety: Do not reset the password of AutoCount's own SQL login without knowing where else it is stored; other PCs would stop connecting.
+    steps:
+      - In SSMS, check the login exists, is enabled and not locked out.
+      - Check the server allows "SQL Server and Windows Authentication mode", then restart the SQL Server service.
+      - If only this tool is refused, run `autocount-assist doctor` and check AC_SQL_USER / AC_SQL_PASSWORD.
+    verify:
+      - No new "Login failed" lines appear after another attempt.

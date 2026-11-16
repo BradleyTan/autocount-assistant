@@ -1,0 +1,98 @@
+id: database_size_or_slow
+title: AutoCount is slow, times out, or the database is full
+keywords: [slow, hang, hangs, timeout, time out, not responding, database full, full, 10gb, express, size, deadlock, performance, takes long, lag]
+ask_customer:
+  - Is everything slow or one screen or report? Which one?
+  - Is it slow on all PCs or one, and since when?
+  - How many users are working at the same time when it is slow?
+checks:
+  - id: express_near_limit
+    type: server_fact
+    fact: express_used_pct
+    op: ">="
+    value: 85
+    describe: SQL Server Express database is close to its 10 GB limit
+  - id: log_bigger_than_data
+    type: server_fact
+    fact: log_to_data_ratio
+    op: ">="
+    value: 1
+    describe: The transaction log file is larger than the data
+  - id: full_recovery
+    type: server_fact
+    fact: recovery_model
+    op: "=="
+    value: FULL
+    describe: The database uses the FULL recovery model
+  - id: space_error
+    type: log
+    describe: Out-of-space errors in logs
+    pattern: '(could not allocate space|filegroup is full|licensed limit|transaction log .* is full|\b1105\b|\b9002\b)'
+  - id: space_reported
+    type: question
+    describe: Customer reports a database full error
+    pattern: '(could not allocate space|filegroup is full|licensed limit|log .* is full|database (is )?full|10 ?gb)'
+  - id: timeout_error
+    type: log
+    describe: Timeout errors in logs
+    pattern: '(timeout expired|execution timeout|lock request time out)'
+    context: 2
+  - id: deadlock_error
+    type: log
+    describe: Deadlock errors in logs
+    pattern: '(deadlock)'
+causes:
+  - id: express_limit
+    title: The database is at or near the SQL Server Express 10 GB limit
+    why: SQL Server Express refuses to grow a database beyond 10 GB of data. Close to the limit, saving documents fails with "could not allocate space" even though the disk has room.
+    checks: [express_near_limit, space_error, space_reported]
+    requires: [express_near_limit]
+    base: 0.55
+    menu: SQL Server edition (outside AutoCount); AutoCount year-end / archive functions
+    safety: Purging or archiving data cannot be undone. Take and test a full backup, and agree with the customer what history they must keep.
+    steps:
+      - Confirm the data size with `autocount-assist scan --db <book>`.
+      - Discuss options with the customer, such as moving to SQL Server Standard, or archiving old years into a separate account book.
+      - Do not shrink or delete data directly in SQL.
+    verify:
+      - '`autocount-assist scan` shows the Express usage well below the limit, or a non-Express edition.'
+  - id: log_file_growth
+    title: The transaction log has grown very large (FULL recovery without log backups)
+    why: In FULL recovery, SQL Server keeps every change in the log until a log backup is taken. Without log backups the log grows until the disk is full, and everything slows down or stops.
+    checks: [log_bigger_than_data, full_recovery, space_error]
+    requires: [log_bigger_than_data]
+    base: 0.45
+    menu: SQL Server Management Studio > Database Properties > Options (recovery model)
+    safety: Changing the recovery model changes what can be restored. Take a full backup first and confirm no one relies on log backups.
+    steps:
+      - Take a full backup of the account book.
+      - If the customer does not need point-in-time restore, switch the recovery model to SIMPLE; otherwise schedule regular log backups.
+      - Let a database administrator shrink the log file once, after the backup.
+    verify:
+      - '`autocount-assist scan` shows the log size well below the data size.'
+  - id: blocking_or_timeouts
+    title: Long-running work blocks other users (timeouts or deadlocks)
+    why: A long report or recalculation holds locks on the rows it reads or writes. Other users wait for those locks, and the program reports a timeout or a deadlock when the wait is too long.
+    checks: [timeout_error, deadlock_error]
+    base: 0.45
+    menu: The screen or report named in the log line
+    changes_data: false
+    steps:
+      - Find which screen or report the timeout lines name, and at what time of day.
+      - Ask the customer to run heavy reports and recalculations outside busy hours.
+      - If it persists, ask a database administrator to check index maintenance and statistics.
+    verify:
+      - No new timeout or deadlock lines appear in the log during normal work.
+  - id: general_slowness
+    title: General slowness from the PC, network or antivirus
+    why: AutoCount reads the database over the network for every screen. A slow disk, weak Wi-Fi or antivirus scanning the SQL data files slows every screen equally.
+    checks: []
+    base: 0.3
+    menu: Outside AutoCount (server PC, network, antivirus)
+    changes_data: false
+    steps:
+      - Compare speed on the server PC itself with a workstation; if only workstations are slow, check the network.
+      - Exclude the SQL Server data folder from real-time antivirus scanning.
+      - Check the server PC has free memory and disk space.
+    verify:
+      - The same screen opens in a similar time on the server and on a workstation.

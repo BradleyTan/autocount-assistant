@@ -1,0 +1,109 @@
+id: backup_restore_fails
+title: Backup or restore fails
+keywords: [backup, back up, restore, restoring, bak, cannot restore, backup failed, backup error]
+ask_customer:
+  - Is it the backup or the restore that fails, and what is the exact message?
+  - Where is the backup file saved, and on which PC is SQL Server?
+  - Which AutoCount and SQL Server versions made the backup, and which are restoring it?
+checks:
+  - id: newer_version_log
+    type: log
+    describe: Backup from a newer SQL Server version, in logs
+    pattern: '(backed up on a server running version|\b3169\b)'
+  - id: newer_version_reported
+    type: question
+    describe: Customer reports a version error on restore
+    pattern: '(backed up on a server running version|\b3169\b|incompatible with this server|newer (sql )?version)'
+  - id: access_log
+    type: log
+    describe: Backup device or file access errors in logs
+    pattern: '(cannot open backup device|operating system error [35]\b|access is denied|\b3201\b|directory lookup for the file|\b5133\b|\b5123\b)'
+    context: 1
+  - id: access_reported
+    type: question
+    describe: Customer reports an access or path error
+    pattern: '(cannot open backup device|operating system error|access (is )?denied|\b3201\b|directory lookup|path not found)'
+  - id: in_use_log
+    type: log
+    describe: Database in use during restore, in logs
+    pattern: '(exclusive access could not be obtained|database is in use|\b3101\b)'
+  - id: in_use_reported
+    type: question
+    describe: Customer reports the database is in use
+    pattern: '(exclusive access|database is in use|\b3101\b|in use)'
+  - id: space_log
+    type: log
+    describe: Not enough disk space, in logs
+    pattern: '(not enough space on the disk|insufficient (free|disk) space|operating system error 112|\b3257\b)'
+  - id: space_reported
+    type: question
+    describe: Customer reports not enough disk space
+    pattern: '(not enough space|insufficient (free |disk )?space|disk (is )?full|error 112)'
+  - id: express_near_limit
+    type: server_fact
+    fact: express_used_pct
+    op: ">="
+    value: 85
+    describe: SQL Server Express database is close to its 10 GB limit
+causes:
+  - id: newer_sql_version
+    title: The backup was made on a newer SQL Server version than the one restoring it
+    why: SQL Server can restore a backup from the same or an older version, never from a newer one. A backup from SQL Server 2022 cannot be restored on 2019.
+    checks: [newer_version_log, newer_version_reported]
+    base: 0.5
+    menu: SQL Server version on the restoring PC (outside AutoCount)
+    changes_data: false
+    steps:
+      - Compare the SQL Server versions of the two PCs (`autocount-assist scan` shows this PC's).
+      - Restore on a PC with the same or a newer SQL Server, or upgrade this PC's SQL Server.
+    verify:
+      - The restore finishes and the account book opens.
+  - id: file_access
+    title: SQL Server cannot read or write the backup folder
+    why: The backup file is read and written by the SQL Server service on the server PC, not by the user's own PC. The path must exist there and the service account needs permission to it.
+    checks: [access_log, access_reported]
+    base: 0.5
+    menu: Backup / Restore screen (choose a folder on the SQL Server machine)
+    changes_data: false
+    steps:
+      - Use a folder on the SQL Server machine, such as the instance's Backup folder, not a Desktop, network drive or USB path.
+      - Copy the backup file into that folder first, then restore from there.
+    verify:
+      - The backup or restore completes without an operating system error.
+  - id: database_in_use
+    title: The database is in use while restoring
+    why: A restore replaces the whole database, so SQL Server needs to be the only one connected to it.
+    checks: [in_use_log, in_use_reported]
+    base: 0.5
+    menu: Restore screen
+    safety: A restore overwrites the account book. Confirm with the customer that the current data may be replaced, and back it up first.
+    steps:
+      - Ask all users to log out of AutoCount, and close other tools connected to the database.
+      - Restore again; restore to a new account book name if the current one must be kept.
+    verify:
+      - The restore finishes and users can log in.
+  - id: disk_space
+    title: Not enough disk space for the backup or restore
+    why: A restore needs free space for the full size of the data and log files, which can be much larger than the backup file.
+    checks: [space_log, space_reported]
+    base: 0.45
+    menu: Disk space on the SQL Server machine (outside AutoCount)
+    changes_data: false
+    steps:
+      - Check free space on the drives that hold the SQL data folder and the backup folder.
+      - Free space or choose another drive, then try again.
+    verify:
+      - The backup or restore completes.
+  - id: express_limit
+    title: The restored database would exceed the SQL Server Express 10 GB limit
+    why: SQL Server Express refuses a database with more than 10 GB of data, so a backup from a paid edition can fail to restore on Express.
+    checks: [express_near_limit, space_reported]
+    requires: [express_near_limit]
+    base: 0.4
+    menu: SQL Server edition (outside AutoCount)
+    changes_data: false
+    steps:
+      - Check the edition and data size with `autocount-assist scan --db <book>`.
+      - Restore on a non-Express edition.
+    verify:
+      - The restore completes on the other edition.

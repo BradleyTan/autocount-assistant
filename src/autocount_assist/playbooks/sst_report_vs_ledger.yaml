@@ -1,0 +1,85 @@
+id: sst_report_vs_ledger
+title: SST report differs from the general ledger
+keywords: [sst, sst-02, sst02, service tax, sales tax, tax report, tax code, ledger, gl, differ, difference, mismatch]
+ask_customer:
+  - Which taxable period, and what are the two totals being compared?
+  - Is the customer registered for sales tax, service tax or both?
+  - Were any journal entries posted to the SST account in that period?
+checks:
+  - id: manual_je_to_tax_account
+    type: sql
+    verified: false
+    describe: Journal entries posted directly to tax accounts (not from tax documents)
+    objects:
+      gl: {table: GLDTL, columns: {acc: AccNo, source: [SourceType, JournalType]}}
+      tax: {table: [TaxCode, TaxType], columns: {acc: TaxAccNo}}
+    query: >
+      SELECT TOP 20 {gl.acc} AS AccNo, COUNT(*) AS Entries FROM {gl}
+      WHERE {gl.source} IN ('JE', 'GJ') AND {gl.acc} IN
+      (SELECT DISTINCT {tax.acc} FROM {tax} WHERE {tax.acc} IS NOT NULL)
+      GROUP BY {gl.acc}
+    ref: GLDTL (journal entries on tax accounts)
+  - id: old_service_tax_rate
+    type: sql
+    verified: false
+    describe: Tax codes still at the old 6% service tax rate (8% since 1 March 2024 for most services)
+    objects:
+      tax: {table: [TaxCode, TaxType], columns: {code: [TaxCode, TaxType], rate: TaxRate}}
+    query: SELECT {tax.code} AS TaxCode, {tax.rate} AS TaxRate FROM {tax} WHERE {tax.rate} = 6
+    ref: TaxCode.TaxRate
+  - id: tax_report_error
+    type: log
+    describe: Errors while generating tax reports
+    pattern: '(sst|tax).*(report).*(error|exception|fail)'
+    context: 2
+causes:
+  - id: manual_journal
+    title: Manual journal entries to the SST account are in the ledger but not in the SST report
+    why: The SST report adds up tax from tax documents (invoices, credit notes, debit notes). A journal entry debits or credits the SST account directly, so the ledger balance moves but the report does not. The two then differ by the journal amount.
+    checks: [manual_je_to_tax_account]
+    base: 0.5
+    menu: G/L > Journal Entry (and G/L > Ledger report filtered on the SST account)
+    safety: Do not delete or edit posted journals yourself. The customer's accountant or tax agent decides how each one is corrected, and a submitted SST-02 period must not be changed without them.
+    steps:
+      - List the journal entries on the SST payable account for the period.
+      - Decide with the customer whether each is a genuine adjustment; the SST report only includes tax from documents.
+      - Reverse wrong journals and re-issue them as proper tax documents (e.g. credit/debit notes) if they affect SST.
+    verify:
+      - SST report total plus genuine journal adjustments equals the ledger movement on the SST account for the same period.
+  - id: wrong_rate
+    title: A tax code still uses the old 6% service tax rate
+    why: Tax is calculated as amount times the tax code's rate. If documents used a 6% code where 8% applies, the tax collected in the ledger is lower than the tax due.
+    checks: [old_service_tax_rate]
+    base: 0.45
+    menu: General Maintenance > Tax Code Maintenance
+    safety: Some services stay at 6% by law. Confirm the correct rate for each service with the customer's tax agent before changing a tax code.
+    steps:
+      - Check which services in the period should be taxed at 8%.
+      - Create or update the 8% service tax code and set it as the default on the affected items / accounts.
+      - Correct documents issued with the wrong rate using credit/debit notes as advised by the customer's tax agent.
+    verify:
+      - A new test document for an affected service calculates tax at the right rate.
+  - id: period_or_basis
+    title: Reports use different periods or bases (document date vs posting date, or invoice vs payment basis)
+    why: Service tax is generally due when payment is received, while the ledger records tax when the invoice is posted. Comparing the two over the same dates can show a timing difference that is not an error.
+    checks: []
+    base: 0.35
+    menu: SST report criteria screen and G/L > Ledger criteria
+    changes_data: false
+    steps:
+      - Run both reports for exactly the same date range.
+      - Confirm the SST report basis (for service tax, payment received basis may apply) matches what is being compared.
+    verify:
+      - The remaining difference can be listed document by document.
+  - id: report_error
+    title: The SST report failed or was incomplete
+    why: A report that stopped with an error can show a partial total.
+    checks: [tax_report_error]
+    base: 0.45
+    menu: The SST report screen
+    changes_data: false
+    steps:
+      - Re-run the report and note the error message.
+      - Check the error against the knowledge base and release notes for a fix in a newer version.
+    verify:
+      - The report finishes without an error.

@@ -1,0 +1,17 @@
+# Synthetic sample: no real customer data.
+scenario: database_size_or_slow
+question: AutoCount is slow and saving an invoice fails with could not allocate space, database full
+expected_top_cause: express_limit
+binaries: {AutoCount2.exe: 2.2.32.45, AutoCount.Accounting.dll: 2.2.32.45}
+logs:
+  Logs/AutoCount.log: |
+    {d0} 14:02:55 ERROR Could not allocate space for object 'dbo.IVDTL' in database because the 'PRIMARY' filegroup is full
+database:
+  schema:
+    DBVersion: [Version]
+  files:
+    - {type_desc: ROWS, size_mb: 10112, physical_name: 'C:\SQLData\AED_DEMO.mdf'}
+    - {type_desc: LOG, size_mb: 640, physical_name: 'C:\SQLData\AED_DEMO_log.ldf'}
+  responses:
+    - match: 'FROM \[dbversion\]'
+      rows: [{v: "2.2.97"}]

@@ -1,0 +1,114 @@
+id: login_fails_after_upgrade
+title: Cannot log in after upgrading AutoCount
+keywords: [login, log in, logon, sign in, cannot open, upgrade, upgraded, after update, password, account book]
+ask_customer:
+  - What is the exact message on screen when logging in?
+  - Does it happen on every PC or only the one that was upgraded?
+  - Which version was installed before the upgrade?
+checks:
+  - id: version_mismatch
+    type: version_mismatch
+    describe: System and database versions are compatible
+  - id: core_dlls
+    type: core_dll_mismatch
+    describe: All AutoCount DLLs match the system version
+  - id: sql_login_failed
+    type: log
+    describe: SQL Server login failures in logs
+    pattern: '(login failed for user|\b18456\b)'
+  - id: sql_unreachable
+    type: log
+    describe: SQL Server instance unreachable in logs
+    pattern: '(network-related|server was not found|error: ?26|error: ?40|error locating server|sql server browser)'
+  - id: sql_connect_now
+    type: sql_connect
+    describe: This PC can connect to the SQL Server instance now
+    error_pattern: '(network-related|not found|not accessible|locating server|timeout|08001|could not open a connection)'
+  - id: assembly_load
+    type: log
+    describe: DLL / plugin load failures in logs
+    pattern: '(could not load file or assembly|filenotfoundexception|badimageformat|typeloadexception|plugin.*(fail|error))'
+    context: 3
+  - id: licence_error
+    type: log
+    describe: Licence / activation errors in logs
+    pattern: '(licen[cs]e|activation|serial|registration).*(invalid|expired|fail|not found)'
+causes:
+  - id: db_not_upgraded
+    title: The account book database has not been upgraded to the new version
+    why: The new program expects a newer database structure. Until an administrator runs the database upgrade, the program refuses to open the account book.
+    checks: [version_mismatch]
+    base: 0.55
+    menu: AutoCount login > database upgrade prompt (as an administrator)
+    safety: The database upgrade cannot be undone except by restoring a backup. Take a full backup and get everyone out first.
+    steps:
+      - Make a full backup of the account book first.
+      - Ask all users to close AutoCount.
+      - Log in once with an administrator on the upgraded PC and accept the database upgrade prompt.
+      - Upgrade AutoCount on the other PCs to the same version.
+    verify:
+      - Run `autocount-assist scan`; compatibility should show OK.
+      - A normal user can log in.
+  - id: partial_upgrade
+    title: The upgrade was incomplete (AutoCount DLLs from different versions)
+    why: If the installer was interrupted, or AutoCount was open during the upgrade, some files stay at the old version and the program fails when it loads them.
+    checks: [core_dlls]
+    base: 0.5
+    menu: Windows Settings > Apps > AutoCount Accounting > Modify/Repair (or rerun the installer)
+    changes_data: false
+    steps:
+      - Close AutoCount on this PC.
+      - Rerun the installer (or Repair) as administrator.
+      - Check again that no AutoCount DLL has an older version.
+    verify:
+      - Run `autocount-assist scan`; "AutoCount DLL version mismatches" should be none.
+  - id: plugin_incompatible
+    title: A plugin is not compatible with the new version
+    why: Plugins are built against one AutoCount version. After an upgrade, an old plugin can fail to load and stop the login.
+    checks: [assembly_load]
+    base: 0.45
+    menu: Tools > Plug-In Manager
+    safety: Disabling a plugin can remove functions the customer uses daily. Tell them which functions are affected first.
+    steps:
+      - Note the DLL named in the error.
+      - Temporarily disable or remove that plugin and try logging in again.
+      - Ask the plugin vendor for a build that supports the new version.
+    verify:
+      - Login works with the plugin disabled, and the load error no longer appears in the log.
+  - id: sql_login
+    title: SQL Server rejected the login
+    why: AutoCount connects to SQL Server with its own SQL login. If that login is disabled, locked or its password changed, the account book cannot be opened.
+    checks: [sql_login_failed]
+    base: 0.5
+    menu: SQL Server Management Studio > Security > Logins (outside AutoCount)
+    safety: Do not reset the password of AutoCount's SQL login without knowing where else it is stored; other PCs would stop connecting.
+    steps:
+      - Check that the SQL login AutoCount uses exists, is enabled and not locked out.
+      - Check that the instance still allows SQL Server authentication after the upgrade.
+    verify:
+      - No new "Login failed" lines appear in the log after a login attempt.
+  - id: sql_unreachable
+    title: The SQL Server instance can't be reached
+    why: The program needs a network path to the SQL Server instance. If the service is stopped or the firewall blocks it, no account book can open.
+    checks: [sql_unreachable, sql_connect_now]
+    base: 0.5
+    menu: Windows Services (SQL Server, SQL Server Browser)
+    changes_data: false
+    steps:
+      - Start the SQL Server and SQL Server Browser services on the server PC.
+      - Check that the firewall allows the instance and UDP 1434.
+      - Confirm the server/instance name in AutoCount's account book settings.
+    verify:
+      - '`autocount-assist dbs` lists the account books from this PC.'
+  - id: licence
+    title: Licence or activation problem after the upgrade
+    why: A licence can be tied to a version or need re-activation after a major upgrade.
+    checks: [licence_error]
+    base: 0.45
+    menu: Help > Licence / Activation
+    changes_data: false
+    steps:
+      - Check the licence covers the new version.
+      - Re-activate the licence online, then log in again.
+    verify:
+      - The licence screen shows the product as activated.
