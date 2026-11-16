@@ -82,4 +82,4 @@ def test_scan_json(tmp_path, monkeypatch, capsys):
 
 def test_demo_runs_all(capsys):
     assert main(["demo", "all"]) == 0
-    assert capsys.readouterr().out.count("=== Demo:") == 5
+    assert capsys.readouterr().out.count("=== Demo:") == 8

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -84,8 +84,7 @@ class KnowledgeStore:
         self.db.execute("INSERT INTO kb_fts (kind, ref, title, body) VALUES (?, ?, ?, ?)", (kind, ref, title, body))
 
     def _seed_error_codes(self):
-        text = resources.files("autocount_assist.knowledge").joinpath("seed_error_codes.yaml").read_text()
-        for e in yaml.safe_load(text) or []:
+        for e in _seed_entries():
             self._put_error_code(e["code"], e.get("source", ""), e.get("message", ""), e.get("cause", ""), e.get("fix", ""))
 
     def _put_error_code(self, code, source, message, cause, fix):
@@ -129,13 +128,15 @@ class KnowledgeStore:
     def add_case(self, scenario: str, cause: str, fix: str, playbook_id: str = "", cause_id: str = "",
                  evidence: list[str] | None = None, app_version: str = "", db_version: str = "") -> int:
         self._require_write()
-        m = self.masker.mask_text
+        def m(text: str) -> str:
+            return self.masker.mask_text(text) or ""
+
         ev = json.dumps([m(e) for e in (evidence or [])])
         cur = self.db.execute(
             "INSERT INTO cases (created_at, playbook_id, cause_id, scenario, cause, fix, evidence, app_version, db_version) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (_now(), playbook_id, cause_id, m(scenario), m(cause), m(fix), ev, app_version, db_version))
-        case_id = cur.lastrowid
+        case_id = int(cur.lastrowid or 0)
         self._index("case", str(case_id), m(scenario), f"{m(cause)} {m(fix)} {playbook_id} {cause_id}")
         self.db.commit()
         return case_id
@@ -147,7 +148,7 @@ class KnowledgeStore:
         if not words:
             return []
         match = " OR ".join(f'"{w}"' for w in dict.fromkeys(words))
-        sql = "SELECT kind, ref, title, snippet(kb_fts, 3, '[', ']', ' … ', 12) AS snippet FROM kb_fts WHERE kb_fts MATCH ?"
+        sql = "SELECT kind, ref, title, snippet(kb_fts, 3, '[', ']', ' ... ', 12) AS snippet FROM kb_fts WHERE kb_fts MATCH ?"
         params: list[Any] = [match]
         if kinds:
             sql += f" AND kind IN ({','.join('?' * len(kinds))})"
@@ -155,6 +156,30 @@ class KnowledgeStore:
         sql += " ORDER BY bm25(kb_fts) LIMIT ?"
         params.append(limit)
         return [dict(r) for r in self.db.execute(sql, params)]
+
+    def match_error_codes(self, texts: list[tuple[str, str]], limit: int = 5) -> list[dict[str, Any]]:
+        """Known error codes that appear in the given (where, text) pairs.
+
+        Seed codes match by their pattern; codes you added match by the code itself.
+        """
+        known: dict[str, tuple[re.Pattern[str], dict[str, Any]]] = {}
+        for e in _seed_entries():
+            if e.get("pattern"):
+                known[e["code"]] = (re.compile(e["pattern"], re.IGNORECASE), e)
+        for row in self.db.execute("SELECT code, source, message, cause, fix FROM error_codes"):
+            r = dict(row)
+            if r["code"] not in known and len(r["code"]) >= 4:
+                known[r["code"]] = (re.compile(r"(?<![\w.])" + re.escape(r["code"]) + r"(?![\w.])", re.IGNORECASE), r)
+        out: list[dict[str, Any]] = []
+        for code, (rx, e) in known.items():
+            for where, text in texts:
+                if text and rx.search(text):
+                    out.append({"code": code, "source": e.get("source", ""), "message": e.get("message", ""),
+                                "cause": e.get("cause", ""), "fix": e.get("fix", ""), "matched_in": where})
+                    break
+            if len(out) >= limit:
+                break
+        return out
 
     def cases(self, playbook_id: str | None = None) -> list[dict[str, Any]]:
         if playbook_id:
@@ -179,5 +204,10 @@ class KnowledgeStore:
                 for t in ("schema_columns", "relationships", "error_codes", "release_notes", "cases")}
 
 
+def _seed_entries() -> list[dict[str, Any]]:
+    text = resources.files("autocount_assist.knowledge").joinpath("seed_error_codes.yaml").read_text(encoding="utf-8")
+    return list(yaml.safe_load(text) or [])
+
+
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")

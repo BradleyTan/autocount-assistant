@@ -1,0 +1,14 @@
+# Synthetic sample: no real customer data.
+scenario: backup_restore_fails
+question: Cannot restore backup, error 3169 the database was backed up on a server running version 16.00
+expected_top_cause: newer_sql_version
+binaries: {AutoCount2.exe: 2.2.32.45, AutoCount.Accounting.dll: 2.2.32.45}
+logs:
+  Logs/AutoCount.log: |
+    {d1} 16:40:00 INFO Restore started
+database:
+  schema:
+    DBVersion: [Version]
+  responses:
+    - match: 'FROM \[dbversion\]'
+      rows: [{v: "2.2.97"}]

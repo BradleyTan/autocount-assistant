@@ -1,4 +1,4 @@
-"""The five required sample scenarios, end to end on synthetic data."""
+"""The sample scenarios, end to end on synthetic data."""
 
 import pytest
 
@@ -11,10 +11,13 @@ EXPECTED = {
     "sst_report_vs_ledger": "manual_journal",
     "login_fails_after_upgrade": "db_not_upgraded",
     "db_version_mismatch": "upgrade_this_pc",
+    "sql_connection_fails": "browser_stopped",
+    "database_size_or_slow": "express_limit",
+    "backup_restore_fails": "newer_sql_version",
 }
 
 
-def test_all_five_scenarios_ship():
+def test_all_scenarios_ship():
     assert sorted(EXPECTED) == scenario_ids()
 
 

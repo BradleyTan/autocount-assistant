@@ -46,8 +46,16 @@ def default_config_path() -> Path:
 class Settings:
     install_path: str = DEFAULT_INSTALL_PATH
     sql_server: str = DEFAULT_SQL_SERVER
-    odbc_driver: str = "ODBC Driver 18 for SQL Server"
+    # "auto" picks the newest SQL Server ODBC driver installed on this PC.
+    odbc_driver: str = "auto"
     database: str | None = None
+    # Seconds a single query may run, and milliseconds it may wait on another user's lock.
+    query_timeout: int = 30
+    lock_timeout_ms: int = 5000
+    # Database checks are refused when the login can change data, unless this is true.
+    allow_privileged_login: bool = False
+    # Log lines older than this many days are not used as evidence (0 = no limit).
+    log_days: int = 30
     log_dirs: list[str] = field(default_factory=lambda: list(DEFAULT_LOG_DIRS))
     config_dirs: list[str] = field(default_factory=lambda: ["{install_path}"])
     plugin_dirs: list[str] = field(default_factory=lambda: ["{install_path}"])
@@ -77,6 +85,14 @@ class Settings:
     def proposed_dir(self) -> Path:
         return self.data_dir / "proposed"
 
+    @property
+    def setup_dir(self) -> Path:
+        return self.data_dir / "setup"
+
+    @property
+    def playbook_dir(self) -> Path:
+        return self.data_dir / "playbooks"
+
     # Credentials are read on demand and never stored on the object.
     @staticmethod
     def sql_user() -> str | None:
@@ -88,6 +104,14 @@ class Settings:
 
 
 _SECRET_KEYS = {"password", "pwd", "sql_password", "user", "sql_user", "connection_string"}
+# Type each config-file key must have (TOML types).
+_FIELD_TYPES: dict[str, type] = {
+    "install_path": str, "sql_server": str, "odbc_driver": str, "database": str, "query_timeout": int,
+    "lock_timeout_ms": int, "allow_privileged_login": bool, "log_days": int, "log_dirs": list,
+    "config_dirs": list, "plugin_dirs": list, "app_exes": list, "app_version": str,
+    "db_version_query": str, "data_dir": str,
+}
+_TYPE_NAMES = {str: "text", int: "a whole number", bool: "true or false", list: "a list"}
 
 
 def load_settings(path: str | Path | None = None) -> Settings:
@@ -103,11 +127,15 @@ def load_settings(path: str | Path | None = None) -> Settings:
                 f"{ENV_USER}/{ENV_PASSWORD} environment variables, not in the config file."
             )
         for key, value in data.items():
-            if not hasattr(s, key):
+            if key not in _FIELD_TYPES:
                 raise ConfigError(f"Unknown setting '{key}' in {path}")
-            if key == "data_dir":
-                value = Path(value)
-            setattr(s, key, value)
+            expected = _FIELD_TYPES[key]
+            if isinstance(value, bool) != (expected is bool) or not isinstance(value, expected):
+                raise ConfigError(
+                    f"Setting '{key}' in {path} must be {_TYPE_NAMES[expected]}, got {type(value).__name__}")
+            if isinstance(value, list) and not all(isinstance(v, str) for v in value):
+                raise ConfigError(f"Setting '{key}' in {path} must be a list of text values")
+            setattr(s, key, Path(str(value)) if key == "data_dir" else value)
     if os.environ.get(ENV_SERVER):
         s.sql_server = os.environ[ENV_SERVER]
     if os.environ.get(ENV_DATABASE):

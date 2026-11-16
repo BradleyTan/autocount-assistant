@@ -4,7 +4,18 @@
 
 install_path = 'C:\Program Files\AutoCount\Accounting 2.2'
 sql_server = 'localhost\A2006'
-odbc_driver = 'ODBC Driver 18 for SQL Server'
+# "auto" uses the newest SQL Server ODBC driver installed on this PC.
+odbc_driver = 'auto'
+
+# Seconds one query may run, and milliseconds it may wait for another user's lock.
+query_timeout = 30
+lock_timeout_ms = 5000
+
+# Database checks are refused when the login can change data. Set true only to accept that risk.
+allow_privileged_login = false
+
+# Log lines older than this many days are not used as evidence (0 = no limit).
+log_days = 30
 
 # Folders searched for logs. {install_path} and %ENVVARS% are expanded.
 log_dirs = [

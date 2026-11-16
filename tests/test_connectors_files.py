@@ -2,7 +2,6 @@ from autocount_assist.connectors.config_files import ConfigConnector
 from autocount_assist.connectors.logs import LogConnector
 from autocount_assist.connectors.plugins import PluginConnector
 from autocount_assist.masking import Masker
-
 from helpers import fake_dll
 
 

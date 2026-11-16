@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import urllib.parse
 import urllib.request
-from typing import Callable, Iterator
+from collections.abc import Callable, Iterator
 
 WIKI = "https://wiki.autocountsoft.com"
 CATEGORY = f"{WIKI}/wiki/Category:AutoCount_Accounting_2.2:Release_Note"

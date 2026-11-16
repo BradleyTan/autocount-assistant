@@ -1,0 +1,6 @@
+{
+  "name": "autocount-assist",
+  "version": "0.2.0",
+  "description": "Read-only support assistant for AutoCount Accounting 2.2 desktop: scans logs, config, DLLs and the account book database, then recommends evidence-backed solutions.",
+  "skills": "./.claude/skills/"
+}

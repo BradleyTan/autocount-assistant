@@ -3,15 +3,21 @@ import pytest
 from autocount_assist.analyser import analyse, load_playbooks
 from autocount_assist.cli import make_context
 from autocount_assist.demo import build_env, scenario_ids
-from autocount_assist.recommender import (Recommendation, build_report, confidence_label, render_text,
-                                          validate_recommendation)
+from autocount_assist.recommender import (
+    Recommendation,
+    build_report,
+    confidence_label,
+    render_text,
+    validate_recommendation,
+)
 
 
 def run(sid, tmp_path, with_db=True):
     env = build_env(sid, tmp_path)
     ctx = make_context(env.settings, "AED_DEMO" if with_db else None,
-                       connect=lambda _s: env.connection, check_location=False)
-    return build_report(analyse(env.spec["question"], ctx, load_playbooks()), ctx)
+                       connect=lambda _s: env.connection, check_location=False,
+                       service_state=env.service_state)
+    return build_report(analyse(env.spec["question"], ctx, load_playbooks()[0]), ctx)
 
 
 @pytest.mark.parametrize("sid", scenario_ids())
@@ -44,7 +50,7 @@ def test_missing_database_is_reported_not_guessed(tmp_path):
 def test_unknown_question_returns_no_guess(tmp_path):
     env = build_env("stock_balance_mismatch", tmp_path)
     ctx = make_context(env.settings, None, check_location=False)
-    report = build_report(analyse("printer jammed at reception", ctx, load_playbooks()), ctx)
+    report = build_report(analyse("printer jammed at reception", ctx, load_playbooks()[0]), ctx)
     assert report.recommendations == [] and "No scenario playbook matched" in report.notes[0]
 
 

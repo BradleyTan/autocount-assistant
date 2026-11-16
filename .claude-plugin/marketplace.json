@@ -1,0 +1,14 @@
+{
+  "name": "autocount-tools",
+  "description": "AutoCount support tools",
+  "owner": {
+    "name": "BradleyTan"
+  },
+  "plugins": [
+    {
+      "name": "autocount-assist",
+      "source": "./",
+      "description": "Read-only AutoCount Accounting desktop support assistant"
+    }
+  ]
+}

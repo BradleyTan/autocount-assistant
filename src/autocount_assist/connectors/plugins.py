@@ -37,7 +37,7 @@ def _win_versions(path: Path) -> tuple[str | None, str | None]:
         import ctypes
         from ctypes import wintypes
 
-        ver = ctypes.WinDLL("version", use_last_error=True)
+        ver = ctypes.WinDLL("version", use_last_error=True)  # type: ignore[attr-defined]
         size = ver.GetFileVersionInfoSizeW(str(path), None)
         if not size:
             return None, None
@@ -49,11 +49,11 @@ def _win_versions(path: Path) -> tuple[str | None, str | None]:
         if not ver.VerQueryValueW(buf, "\\VarFileInfo\\Translation", ctypes.byref(lp), ctypes.byref(n)) or not n.value:
             return None, None
         lang, cp = ctypes.cast(lp, ctypes.POINTER(wintypes.WORD * 2)).contents
-        out = []
+        out: list[str | None] = []
         for key in _VERSION_KEYS:
             q = f"\\StringFileInfo\\{lang:04x}{cp:04x}\\{key}"
             if ver.VerQueryValueW(buf, q, ctypes.byref(lp), ctypes.byref(n)) and n.value:
-                out.append(ctypes.wstring_at(lp.value, n.value - 1).strip() or None)
+                out.append(ctypes.wstring_at(lp.value or 0, n.value - 1).strip() or None)
             else:
                 out.append(None)
         return out[0], out[1]
@@ -67,7 +67,7 @@ def _scan_versions(path: Path) -> tuple[str | None, str | None]:
         data = path.read_bytes()
     except OSError:
         return None, None
-    out = []
+    out: list[str | None] = []
     for key in _VERSION_KEYS:
         marker = key.encode("utf-16-le") + b"\x00\x00"
         i = data.rfind(marker)

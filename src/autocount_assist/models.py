@@ -8,7 +8,7 @@ from typing import Any
 
 @dataclass
 class Evidence:
-    source: str  # "log" | "config" | "sql" | "plugin" | "version" | "kb"
+    source: str  # "log" | "config" | "sql" | "plugin" | "version" | "service" | "question"
     ref: str  # file:line, table.column, config key, ...
     detail: str  # masked excerpt
 
@@ -24,6 +24,7 @@ class CheckResult:
     evidence: list[Evidence] = field(default_factory=list)
     note: str = ""  # why it is missing, or what was checked
     verified: bool = True  # False when it relies on AutoCount table names not yet confirmed
+    reported_only: bool = False  # True when it rests on the customer's words, not on this system
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)

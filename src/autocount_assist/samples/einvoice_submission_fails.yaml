@@ -5,9 +5,9 @@ expected_top_cause: invalid_credentials
 binaries: {AutoCount2.exe: 2.2.32.45, AutoCount.Accounting.dll: 2.2.32.45}
 logs:
   Logs/EInvoice.log: |
-    2026-10-06 08:58:12 INFO Submitting 12 document(s) to MyInvois
-    2026-10-06 08:58:13 ERROR MyInvois token request failed: 401 Unauthorized (invalid_client) client_secret=ab12cd34
-    2026-10-06 09:15:40 ERROR MyInvois token request failed: 401 Unauthorized (invalid_client)
+    {d0} 08:58:12 INFO Submitting 12 document(s) to MyInvois
+    {d0} 08:58:13 ERROR MyInvois token request failed: 401 Unauthorized (invalid_client) client_secret=ab12cd34
+    {d0} 09:15:40 ERROR MyInvois token request failed: 401 Unauthorized (invalid_client)
 configs:
   AutoCount2.exe.config: |
     <configuration><appSettings>
@@ -17,9 +17,10 @@ configs:
 database:
   schema:
     DBVersion: [Version]
-    Debtor: [AccNo, CompanyName, TIN, IsActive]
+    Debtor: [AccNo, CompanyName, TaxEntityID, IsActive]
+    TaxEntity: [TaxEntityID, TIN]
   responses:
     - match: 'FROM \[dbversion\]'
       rows: [{v: "2.2.97"}]
-    - match: 'FROM Debtor'
+    - match: 'FROM \[Debtor\]'
       rows: [{n: 0}]

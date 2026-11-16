@@ -63,7 +63,7 @@ class ConfigConnector:
 
     def _mask(self, key: str, value: str) -> str:
         if SECRET_KEY.search(key):
-            return self.masker.mask_text(value) if "=" in value and ";" in value else "<SECRET>"
+            return (self.masker.mask_text(value) or "") if "=" in value and ";" in value else "<SECRET>"
         return self.masker.mask_text(value) or ""
 
     def find(self, key_pattern: str, value_pattern: str | None = None) -> list[ConfigEntry]:
